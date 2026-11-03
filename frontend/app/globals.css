@@ -1,0 +1,105 @@
+@import "tailwindcss";
+
+/* ------------------------------------------------------------------
+   Fixora design tokens — source of truth: docs/DESIGN.MD
+   Tailwind v4 theme: these generate utilities (bg-brand, text-ink...)
+   ------------------------------------------------------------------ */
+@theme {
+  /* Brand */
+  --color-brand-deep: #143779;
+  --color-brand: #1746a2;
+  --color-brand-hover: #2459bc;
+  --color-brand-link: #326fd4;
+  --color-brand-soft: #eaf1ff;
+  --color-brand-subtle: #f5f8ff;
+
+  /* Accent */
+  --color-accent: #e66d1e;
+  --color-accent-strong: #c95b12;
+  --color-highlight: #ff8a34;
+  --color-accent-soft: #fff0e5;
+  --color-accent-subtle: #fff8f2;
+
+  /* Neutrals */
+  --color-ink: #172033;
+  --color-ink-secondary: #39445a;
+  --color-ink-muted: #667085;
+  --color-line: #e4e7ec;
+  --color-line-strong: #d0d5dd;
+  --color-canvas: #f5f7fb;
+  --color-surface: #ffffff;
+
+  /* Semantic */
+  --color-success: #16834a;
+  --color-success-soft: #eaf7ef;
+  --color-warning: #a85b00;
+  --color-warning-soft: #fff5e5;
+  --color-danger: #c43232;
+  --color-danger-soft: #fdecec;
+  --color-info: #1769aa;
+  --color-info-soft: #eaf4fc;
+
+  /* Radius (per spec: sm 8, md 12, lg 16) */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+
+  /* Elevation */
+  --shadow-sm: 0 1px 2px 0 rgb(16 24 40 / 0.05);
+  --shadow-md: 0 6px 16px -4px rgb(16 24 40 / 0.1);
+
+  /* Type */
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", sans-serif;
+}
+
+/* Fixed bottom-nav height, used by sticky CTAs so nothing overlaps it */
+:root {
+  --bottom-nav-h: 64px;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--color-canvas);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Visible keyboard focus everywhere (WCAG 2.2 AA) */
+  :focus-visible {
+    outline: 2px solid var(--color-brand);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  ::selection {
+    background-color: var(--color-brand-soft);
+    color: var(--color-brand-deep);
+  }
+}
+
+/* Respect reduced-motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Thin, quiet scrollbar for horizontal chip rows on desktop */
+@utility scrollbar-none {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
