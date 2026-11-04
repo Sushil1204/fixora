@@ -3,17 +3,23 @@
  * No real people, addresses, or phone numbers. No network calls.
  */
 import { upcomingDates } from "./format";
+import { TECHNICIAN } from "./technician";
 import { buildEstimate } from "./pricing";
+import { buildTimeline } from "./job-workflow";
 import type {
   Address,
   AppNotification,
   Booking,
-  BookingStatus,
+  CatalogEntry,
+  DisputeCase,
+  JobWorkMap,
   Service,
   ServiceCategory,
+  TechnicianDocument,
+  TechnicianRecord,
   TimeSlot,
-  TimelineStep,
   UserProfile,
+  VerificationStatus,
 } from "./types";
 
 export const DEMO_LOCATIONS = [
@@ -459,61 +465,6 @@ export const DEMO_ADDRESSES: Address[] = [
 
 /* ---------------------------------- Bookings --------------------------------- */
 
-const FULL_FLOW: TimelineStep[] = [
-  {
-    status: "requested",
-    note: "We received your booking request",
-    at: undefined,
-  },
-  {
-    status: "assigned",
-    note: "A technician from the demo team is assigned",
-    at: undefined,
-  },
-  {
-    status: "on_the_way",
-    note: "The technician is travelling to your address",
-    at: undefined,
-  },
-  {
-    status: "in_progress",
-    note: "Work has started at your address",
-    at: undefined,
-  },
-  {
-    status: "completed",
-    note: "The job is marked complete and the estimate is final",
-    at: undefined,
-  },
-];
-
-function timelineUpTo(
-  status: BookingStatus,
-  timestamps: Partial<Record<BookingStatus, string>>,
-): TimelineStep[] {
-  const order: BookingStatus[] = [
-    "requested",
-    "assigned",
-    "on_the_way",
-    "in_progress",
-    "completed",
-  ];
-  if (status === "cancelled") {
-    return [
-      { ...FULL_FLOW[0], at: timestamps.requested },
-      {
-        status: "cancelled",
-        note: "The booking was cancelled before completion",
-        at: timestamps.cancelled,
-      },
-    ];
-  }
-  const reached = order.indexOf(status);
-  return FULL_FLOW.map((step, i) =>
-    i <= reached ? { ...step, at: timestamps[step.status] } : step,
-  );
-}
-
 const iso = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
     d.getDate(),
@@ -529,96 +480,293 @@ const daysAgo = (n: number) => new Date(Date.now() - n * 86400000);
  * Seed bookings are built at call time (on the client, after mount) so the
  * demo always shows dates relative to the day it is opened. Building them at
  * module load would freeze the dates at build time.
+ *
+ * These same bookings are the technician's assigned work — see
+ * lib/demo-store.ts for the workflow actions that move them forward.
  */
 export function createSeedBookings(): Booking[] {
   const yesterday = daysAgo(1);
+  const today = daysAgo(0);
   const dates = upcomingDates(7);
 
   return [
-  {
-    id: "bk-1001",
-    reference: "FX-2026-0142",
-    serviceSlug: "tap-faucet-repair",
-    serviceName: "Tap & faucet repair",
-    categoryId: "plumbing",
-    addressId: "addr-1",
-    date: dates[1],
-    slot: "10:00",
-    issueNotes:
-      "Kitchen tap drips continuously even when fully closed. The mixer also feels loose.",
-    attachments: ["demo-photo-1.png"],
-    estimate: buildEstimate(499),
-    paymentPreference: "pay-after-service",
-    status: "assigned",
-    timeline: timelineUpTo("assigned", {
-      requested: at(yesterday, 18, 24),
-      assigned: at(daysAgo(0), 9, 12),
-    }),
-    createdAt: at(yesterday, 18, 24),
-  },
-  {
-    id: "bk-1002",
-    reference: "FX-2026-0139",
-    serviceSlug: "ac-service-deep-clean",
-    serviceName: "AC service & deep clean",
-    categoryId: "ac-repair",
-    addressId: "addr-2",
-    date: dates[3],
-    slot: "14:00",
-    issueNotes: "Bedroom AC hasn't been serviced in a year; cooling has dropped.",
-    attachments: [],
-    estimate: buildEstimate(899),
-    paymentPreference: "demo-upi",
-    status: "requested",
-    timeline: timelineUpTo("requested", {
-      requested: at(daysAgo(0), 11, 5),
-    }),
-    createdAt: at(daysAgo(0), 11, 5),
-  },
-  {
-    id: "bk-1003",
-    reference: "FX-2026-0121",
-    serviceSlug: "washing-machine-repair",
-    serviceName: "Washing machine repair",
-    categoryId: "appliance-repair",
-    addressId: "addr-1",
-    date: iso(daysAgo(9)),
-    slot: "16:00",
-    issueNotes: "Machine leaves water at the end of the cycle and won't spin.",
-    attachments: ["demo-photo-1.png", "demo-photo-2.png"],
-    estimate: buildEstimate(749),
-    paymentPreference: "pay-after-service",
-    status: "completed",
-    timeline: timelineUpTo("completed", {
-      requested: at(daysAgo(11), 10, 2),
-      assigned: at(daysAgo(11), 10, 40),
-      on_the_way: at(daysAgo(9), 15, 30),
-      in_progress: at(daysAgo(9), 16, 5),
-      completed: at(daysAgo(9), 17, 10),
-    }),
-    createdAt: at(daysAgo(11), 10, 2),
-  },
-  {
-    id: "bk-1004",
-    reference: "FX-2026-0114",
-    serviceSlug: "switch-socket-repair",
-    serviceName: "Switch & socket repair",
-    categoryId: "electrical",
-    addressId: "addr-1",
-    date: iso(daysAgo(16)),
-    slot: "08:00",
-    issueNotes: "Study room socket stopped working after a power cut.",
-    attachments: [],
-    estimate: buildEstimate(399),
-    paymentPreference: "pay-after-service",
-    status: "cancelled",
-    timeline: timelineUpTo("cancelled", {
-      requested: at(daysAgo(17), 20, 15),
-      cancelled: at(daysAgo(16), 7, 40),
-    }),
-    createdAt: at(daysAgo(17), 20, 15),
-  },
+    {
+      id: "bk-1001",
+      reference: "FX-2026-0142",
+      technicianId: "tech-1",
+      serviceSlug: "tap-faucet-repair",
+      serviceName: "Tap & faucet repair",
+      categoryId: "plumbing",
+      addressId: "addr-1",
+      date: dates[1],
+      slot: "10:00",
+      issueNotes:
+        "Kitchen tap drips continuously even when fully closed. The mixer also feels loose.",
+      attachments: ["demo-photo-1.png"],
+      estimate: buildEstimate(499),
+      paymentPreference: "pay-after-service",
+      status: "assigned",
+      timeline: buildTimeline("assigned", {
+        requested: at(yesterday, 18, 24),
+        assigned: at(today, 9, 12),
+      }),
+      createdAt: at(yesterday, 18, 24),
+    },
+    {
+      id: "bk-1005",
+      reference: "FX-2026-0145",
+      technicianId: "tech-1",
+      serviceSlug: "leakage-inspection-fix",
+      serviceName: "Leakage inspection & fix",
+      categoryId: "plumbing",
+      addressId: "addr-1",
+      date: dates[0],
+      slot: "10:00",
+      issueNotes:
+        "Water pooling under the kitchen sink since last night. The shut-off valve feels stuck.",
+      attachments: ["demo-photo-1.png"],
+      estimate: buildEstimate(599),
+      paymentPreference: "demo-upi",
+      status: "awaiting_approval",
+      timeline: buildTimeline("awaiting_approval", {
+        requested: at(yesterday, 19, 5),
+        assigned: at(today, 8, 35),
+        accepted: at(today, 8, 38),
+        on_the_way: at(today, 9, 20),
+        arrived: at(today, 9, 58),
+        in_progress: at(today, 10, 5),
+        awaiting_approval: at(today, 10, 40),
+      }),
+      createdAt: at(yesterday, 19, 5),
+    },
+    {
+      id: "bk-1006",
+      reference: "FX-2026-0146",
+      technicianId: "tech-1",
+      serviceSlug: "switch-socket-repair",
+      serviceName: "Switch & socket repair",
+      categoryId: "electrical",
+      addressId: "addr-2",
+      date: dates[0],
+      slot: "16:00",
+      issueNotes:
+        "Two living-room sockets stopped working after a voltage fluctuation. No burning smell.",
+      attachments: [],
+      estimate: buildEstimate(399),
+      paymentPreference: "pay-after-service",
+      status: "assigned",
+      timeline: buildTimeline("assigned", {
+        requested: at(yesterday, 21, 10),
+        assigned: at(today, 9, 5),
+      }),
+      createdAt: at(yesterday, 21, 10),
+    },
+    {
+      id: "bk-1002",
+      reference: "FX-2026-0139",
+      serviceSlug: "ac-service-deep-clean",
+      serviceName: "AC service & deep clean",
+      categoryId: "ac-repair",
+      addressId: "addr-2",
+      date: dates[3],
+      slot: "14:00",
+      issueNotes:
+        "Bedroom AC hasn't been serviced in a year; cooling has dropped.",
+      attachments: [],
+      estimate: buildEstimate(899),
+      paymentPreference: "demo-upi",
+      status: "requested",
+      timeline: buildTimeline("requested", {
+        requested: at(today, 11, 5),
+      }),
+      createdAt: at(today, 11, 5),
+    },
+    {
+      id: "bk-1007",
+      reference: "FX-2026-0131",
+      technicianId: "tech-1",
+      serviceSlug: "chimney-microwave-service",
+      serviceName: "Chimney & microwave service",
+      categoryId: "appliance-repair",
+      addressId: "addr-1",
+      date: iso(daysAgo(3)),
+      slot: "08:00",
+      issueNotes:
+        "Chimney suction is weak and the filters are greasy. Microwave turntable squeaks.",
+      attachments: [],
+      estimate: buildEstimate(649),
+      paymentPreference: "pay-after-service",
+      status: "completed",
+      timeline: buildTimeline("completed", {
+        requested: at(daysAgo(5), 12, 0),
+        assigned: at(daysAgo(5), 12, 20),
+        accepted: at(daysAgo(5), 12, 31),
+        on_the_way: at(daysAgo(3), 9, 5),
+        arrived: at(daysAgo(3), 9, 32),
+        in_progress: at(daysAgo(3), 9, 40),
+        completed: at(daysAgo(3), 10, 25),
+      }),
+      createdAt: at(daysAgo(5), 12, 0),
+    },
+    {
+      id: "bk-1003",
+      reference: "FX-2026-0121",
+      technicianId: "tech-1",
+      serviceSlug: "washing-machine-repair",
+      serviceName: "Washing machine repair",
+      categoryId: "appliance-repair",
+      addressId: "addr-1",
+      date: iso(daysAgo(9)),
+      slot: "16:00",
+      issueNotes: "Machine leaves water at the end of the cycle and won't spin.",
+      attachments: ["demo-photo-1.png", "demo-photo-2.png"],
+      estimate: buildEstimate(749),
+      paymentPreference: "pay-after-service",
+      status: "completed",
+      timeline: buildTimeline("completed", {
+        requested: at(daysAgo(11), 10, 2),
+        assigned: at(daysAgo(11), 10, 40),
+        accepted: at(daysAgo(11), 10, 52),
+        on_the_way: at(daysAgo(9), 15, 30),
+        arrived: at(daysAgo(9), 15, 58),
+        in_progress: at(daysAgo(9), 16, 5),
+        completed: at(daysAgo(9), 17, 10),
+      }),
+      createdAt: at(daysAgo(11), 10, 2),
+    },
+    {
+      id: "bk-1008",
+      reference: "FX-2026-0118",
+      technicianId: "tech-1",
+      serviceSlug: "ac-service-deep-clean",
+      serviceName: "AC service & deep clean",
+      categoryId: "ac-repair",
+      addressId: "addr-2",
+      date: iso(daysAgo(26)),
+      slot: "12:00",
+      issueNotes: "Annual service before summer. Cooling has been fine.",
+      attachments: [],
+      estimate: buildEstimate(899),
+      paymentPreference: "demo-card",
+      status: "completed",
+      timeline: buildTimeline("completed", {
+        requested: at(daysAgo(28), 16, 20),
+        assigned: at(daysAgo(28), 16, 35),
+        accepted: at(daysAgo(28), 16, 40),
+        on_the_way: at(daysAgo(26), 11, 0),
+        arrived: at(daysAgo(26), 11, 24),
+        in_progress: at(daysAgo(26), 11, 30),
+        completed: at(daysAgo(26), 12, 20),
+      }),
+      createdAt: at(daysAgo(28), 16, 20),
+    },
+    {
+      id: "bk-1004",
+      reference: "FX-2026-0114",
+      serviceSlug: "switch-socket-repair",
+      serviceName: "Switch & socket repair",
+      categoryId: "electrical",
+      addressId: "addr-1",
+      date: iso(daysAgo(16)),
+      slot: "08:00",
+      issueNotes: "Study room socket stopped working after a power cut.",
+      attachments: [],
+      estimate: buildEstimate(399),
+      paymentPreference: "pay-after-service",
+      status: "cancelled",
+      timeline: buildTimeline("cancelled", {
+        requested: at(daysAgo(17), 20, 15),
+        cancelled: at(daysAgo(16), 7, 40),
+      }),
+      createdAt: at(daysAgo(17), 20, 15),
+    },
   ];
+}
+
+/**
+ * Technician-side seed state. bk-1005 carries a pending extra-work quote so
+ * the customer approval loop can be demonstrated end to end; the completed
+ * jobs feed the earnings screen.
+ */
+export function createSeedJobWork(): JobWorkMap {
+  const today = daysAgo(0);
+  const allDone = [
+    "pre-call",
+    "pre-confirm",
+    "pre-setup",
+    "post-test",
+    "post-clean",
+    "post-handover",
+  ];
+
+  return {
+    "bk-1005": {
+      done: ["pre-call", "pre-confirm", "pre-setup"],
+      evidence: { before: at(today, 10, 2) },
+      quote: {
+        items: [
+          {
+            id: "quote-1",
+            description: "Replacement shut-off valve and washer set",
+            amount: 450,
+          },
+          {
+            id: "quote-2",
+            description: "Extra 30 min labour for the seized joint",
+            amount: 150,
+          },
+        ],
+        note: "The shut-off valve under the sink is seized. It needs replacing before the leak can be closed.",
+        status: "pending",
+        submittedAt: at(today, 10, 40),
+      },
+      notes:
+        "Leak traced to the valve joint. Waiting on customer approval before replacing the valve.",
+    },
+    "bk-1003": {
+      done: allDone,
+      evidence: {
+        before: at(daysAgo(9), 16, 8),
+        part: at(daysAgo(9), 16, 41),
+        after: at(daysAgo(9), 17, 2),
+      },
+      quote: {
+        items: [
+          {
+            id: "quote-1",
+            description: "Drain hose clamp and seal",
+            amount: 250,
+          },
+        ],
+        note: "The drain hose clamp had cracked and was replaced with a standard part.",
+        status: "approved",
+        submittedAt: at(daysAgo(9), 16, 30),
+        decidedAt: at(daysAgo(9), 16, 45),
+      },
+      notes:
+        "Drain pump and belt were fine. Replaced the cracked hose clamp and ran a full spin cycle.",
+    },
+    "bk-1007": {
+      done: allDone,
+      evidence: {
+        before: at(daysAgo(3), 9, 44),
+        part: at(daysAgo(3), 9, 58),
+        after: at(daysAgo(3), 10, 18),
+      },
+      notes:
+        "Degreased the chimney filters and cleaned the microwave cavity. Suction is back to normal.",
+    },
+    "bk-1008": {
+      done: allDone,
+      evidence: {
+        before: at(daysAgo(26), 11, 33),
+        part: at(daysAgo(26), 11, 52),
+        after: at(daysAgo(26), 12, 12),
+      },
+      notes:
+        "Coils cleaned, drain tray flushed, cooling test passed. Customer declined gas top-up.",
+    },
+  };
 }
 
 /* -------------------------------- Notifications ------------------------------- */
@@ -641,10 +789,10 @@ export function createSeedNotifications(): AppNotification[] {
     id: "ntf-2",
     kind: "estimate",
     title: "Approval needed for extra work",
-    body: "A demo quote for a replacement valve (₹450) is waiting for your approval on FX-2026-0142.",
+    body: "Ravi K. raised a ₹600 quote for a replacement valve on FX-2026-0145. Approve or decline it from the booking.",
     createdAt: hoursAgo(3),
     read: false,
-    href: "/bookings/bk-1001",
+    href: "/bookings/bk-1005",
   },
   {
     id: "ntf-3",
@@ -692,5 +840,368 @@ export function getServicesByCategory(id: Service["categoryId"]): Service[] {
 
 export function popularServices(): Service[] {
   return SERVICES.filter((s) => s.popular);
+}
+
+/* -------------------------------- Admin portal -------------------------------- */
+
+const DOC_DEFINITIONS: {
+  kind: TechnicianDocument["kind"];
+  name: string;
+}[] = [
+  { kind: "identity", name: "Government ID" },
+  { kind: "police", name: "Police verification" },
+  { kind: "skill", name: "Skill certificate" },
+  { kind: "address", name: "Address proof" },
+];
+
+/** Simulated document records — filenames are placeholders, never real files. */
+function buildTechnicianDocuments(
+  uploadedDaysAgo: number,
+  overrides: Partial<Record<TechnicianDocument["kind"], VerificationStatus>> = {},
+  rejectionNote?: { kind: TechnicianDocument["kind"]; note: string },
+): TechnicianDocument[] {
+  return DOC_DEFINITIONS.map((definition) => {
+    const note =
+      rejectionNote?.kind === definition.kind
+        ? rejectionNote.note
+        : "Demo document placeholder — no file is stored or uploaded.";
+    return {
+      id: `doc-${definition.kind}`,
+      kind: definition.kind,
+      name: definition.name,
+      status: overrides[definition.kind] ?? "verified",
+      uploadedAt: at(daysAgo(uploadedDaysAgo), 10, 15),
+      note,
+    };
+  });
+}
+
+/**
+ * The demo technician roster. Ravi is the signed-in technician used by `/technician`;
+ * the rest exist so operations can review, approve and assign work.
+ */
+export function createSeedTechnicians(): TechnicianRecord[] {
+  return [
+    {
+      id: "tech-1",
+      code: TECHNICIAN.technicianCode,
+      name: TECHNICIAN.name,
+      initials: TECHNICIAN.initials,
+      phone: TECHNICIAN.phone,
+      email: "ravi.kumar@fixora.example",
+      skills: [...TECHNICIAN.skills],
+      coverage: [...TECHNICIAN.coverage],
+      rating: TECHNICIAN.rating,
+      jobsCompleted: TECHNICIAN.jobsCompleted,
+      yearsExperience: TECHNICIAN.yearsExperience,
+      joinedAt: iso(daysAgo(430)),
+      lastActiveAt: hoursAgo(0.6),
+      verification: "verified",
+      documents: buildTechnicianDocuments(430),
+    },
+    {
+      id: "tech-2",
+      code: "TECH-1038",
+      name: "Meera Iyer",
+      initials: "MI",
+      phone: "+91 90000 23456",
+      email: "meera.iyer@fixora.example",
+      skills: ["ac-repair", "appliance-repair"],
+      coverage: ["Indiranagar", "HSR Layout", "Bellandur"],
+      rating: "4.9",
+      jobsCompleted: 448,
+      yearsExperience: 8,
+      joinedAt: iso(daysAgo(690)),
+      lastActiveAt: hoursAgo(2.5),
+      verification: "verified",
+      documents: buildTechnicianDocuments(690),
+    },
+    {
+      id: "tech-3",
+      code: "TECH-1051",
+      name: "Imran Qureshi",
+      initials: "IQ",
+      phone: "+91 90000 34567",
+      email: "imran.qureshi@fixora.example",
+      skills: ["electrical", "carpentry"],
+      coverage: ["Koramangala", "Jayanagar", "BTM Layout"],
+      rating: "4.7",
+      jobsCompleted: 186,
+      yearsExperience: 5,
+      joinedAt: iso(daysAgo(310)),
+      lastActiveAt: hoursAgo(5),
+      verification: "verified",
+      documents: buildTechnicianDocuments(310),
+    },
+    {
+      id: "tech-4",
+      code: "TECH-1063",
+      name: "Kavya Menon",
+      initials: "KM",
+      phone: "+91 90000 45678",
+      email: "kavya.menon@fixora.example",
+      skills: ["mobile-repair", "appliance-repair"],
+      coverage: ["Whitefield", "Marathahalli"],
+      rating: "4.6",
+      jobsCompleted: 64,
+      yearsExperience: 3,
+      joinedAt: iso(daysAgo(48)),
+      lastActiveAt: hoursAgo(26),
+      verification: "pending",
+      documents: buildTechnicianDocuments(
+        3,
+        { identity: "pending", police: "pending" },
+      ),
+    },
+    {
+      id: "tech-5",
+      code: "TECH-1067",
+      name: "Arjun Das",
+      initials: "AD",
+      phone: "+91 90000 56789",
+      email: "arjun.das@fixora.example",
+      skills: ["plumbing", "carpentry"],
+      coverage: ["Rajajinagar", "Malleshwaram"],
+      rating: "4.5",
+      jobsCompleted: 22,
+      yearsExperience: 2,
+      joinedAt: iso(daysAgo(11)),
+      lastActiveAt: hoursAgo(51),
+      verification: "pending",
+      documents: buildTechnicianDocuments(
+        2,
+        { identity: "pending", police: "pending", skill: "pending" },
+      ),
+    },
+    {
+      id: "tech-6",
+      code: "TECH-1029",
+      name: "Neha Kulkarni",
+      initials: "NK",
+      phone: "+91 90000 67890",
+      email: "neha.kulkarni@fixora.example",
+      skills: ["ac-repair", "electrical"],
+      coverage: ["HSR Layout", "Sarjapur Road"],
+      rating: "4.8",
+      jobsCompleted: 538,
+      yearsExperience: 9,
+      joinedAt: iso(daysAgo(820)),
+      lastActiveAt: hoursAgo(140),
+      verification: "rejected",
+      verificationNote:
+        "Name on the uploaded government ID does not match the demo profile. Re-upload required.",
+      documents: buildTechnicianDocuments(
+        21,
+        { identity: "rejected" },
+        {
+          kind: "identity",
+          note: "Rejected in the demo review: name mismatch on the placeholder ID.",
+        },
+      ),
+    },
+  ];
+}
+
+/** Support and dispute cases shown in the operations queue. */
+export function createSeedDisputes(): DisputeCase[] {
+  return [
+    {
+      id: "disp-1001",
+      reference: "SUP-1046",
+      bookingId: "bk-1007",
+      kind: "quality",
+      priority: "high",
+      status: "investigating",
+      owner: "Priya Nair",
+      summary:
+        "Chimney suction is still weak after the visit. The customer says the filters were not removed and wants a re-visit.",
+      openedAt: hoursAgo(26),
+      slaHours: 24,
+      evidence: ["Service notes (demo)", "Before photo placeholder", "Customer message"],
+      customerUpdates: [
+        {
+          id: "upd-1",
+          body: "We've received your case and are reviewing the visit notes.",
+          at: hoursAgo(26),
+          author: "Fixora support",
+        },
+        {
+          id: "upd-2",
+          body: "We've asked the technician for details and will update you within one working day.",
+          at: hoursAgo(20),
+          author: "Priya Nair",
+        },
+      ],
+      internalNotes: [
+        {
+          id: "note-1",
+          body: "Technician notes say the filters were degreased, not replaced. Confirm whether replacement was ever quoted before offering a re-visit.",
+          at: hoursAgo(18),
+          author: "Dev Patel",
+        },
+      ],
+    },
+    {
+      id: "disp-1002",
+      reference: "SUP-1044",
+      bookingId: "bk-1003",
+      kind: "billing",
+      priority: "medium",
+      status: "open",
+      owner: null,
+      summary:
+        "Customer says the ₹250 extra part was already included in the original estimate and is asking for a refund.",
+      openedAt: hoursAgo(52),
+      slaHours: 48,
+      evidence: ["Estimate snapshot (demo)", "Extra-work quote", "Payment record placeholder"],
+      customerUpdates: [
+        {
+          id: "upd-1",
+          body: "We've received your billing question and are checking the estimate and quote records.",
+          at: hoursAgo(52),
+          author: "Fixora support",
+        },
+      ],
+      internalNotes: [
+        {
+          id: "note-1",
+          body: "Quote was approved separately for ₹250; not part of the base estimate. Needs a clear customer explanation, not a refund.",
+          at: hoursAgo(40),
+          author: "Anita Rao",
+        },
+      ],
+    },
+    {
+      id: "disp-1003",
+      reference: "SUP-1047",
+      bookingId: "bk-1005",
+      kind: "quality",
+      priority: "high",
+      status: "open",
+      owner: "Dev Patel",
+      summary:
+        "Water is pooling again under the kitchen sink after the valve replacement. Customer reports a slow leak.",
+      openedAt: hoursAgo(6),
+      slaHours: 12,
+      evidence: ["Technician notes (demo)", "After photo placeholder", "Customer message"],
+      customerUpdates: [
+        {
+          id: "upd-1",
+          body: "Thanks for flagging this. Operations is reviewing the visit before arranging a re-visit.",
+          at: hoursAgo(6),
+          author: "Fixora support",
+        },
+      ],
+      internalNotes: [
+        {
+          id: "note-1",
+          body: "Job is still awaiting customer approval on the ₹600 valve quote — do not close this case before the visit is completed.",
+          at: hoursAgo(4),
+          author: "Dev Patel",
+        },
+      ],
+    },
+    {
+      id: "disp-1004",
+      reference: "SUP-1048",
+      bookingId: "bk-1002",
+      kind: "billing",
+      priority: "medium",
+      status: "investigating",
+      owner: "Anita Rao",
+      summary:
+        "A demo UPI payment appears twice in the customer's history and needs an operations check before the visit.",
+      openedAt: hoursAgo(2),
+      slaHours: 24,
+      evidence: ["Payment record placeholder", "Customer screenshot placeholder"],
+      customerUpdates: [
+        {
+          id: "upd-1",
+          body: "We're checking the duplicate demo payment; no money moves in this environment.",
+          at: hoursAgo(2),
+          author: "Anita Rao",
+        },
+      ],
+      internalNotes: [],
+    },
+    {
+      id: "disp-1005",
+      reference: "SUP-1038",
+      bookingId: "bk-1008",
+      kind: "delay",
+      priority: "low",
+      status: "resolved",
+      owner: "Priya Nair",
+      summary:
+        "The technician arrived outside the booked window. Customer asked for the visit to be noted, not for a refund.",
+      openedAt: hoursAgo(288),
+      slaHours: 48,
+      evidence: ["Timeline snapshot (demo)"],
+      customerUpdates: [
+        {
+          id: "upd-1",
+          body: "We've reviewed the arrival time against the booking window and shared feedback with dispatch.",
+          at: hoursAgo(280),
+          author: "Priya Nair",
+        },
+        {
+          id: "upd-2",
+          body: "Your case is resolved. A ₹150 demo goodwill credit was applied to the next booking.",
+          at: hoursAgo(260),
+          author: "Priya Nair",
+        },
+      ],
+      internalNotes: [
+        {
+          id: "note-1",
+          body: "Arrival was 24 minutes late; customer only wanted it recorded. Applied demo goodwill credit and closed.",
+          at: hoursAgo(261),
+          author: "Priya Nair",
+        },
+      ],
+      resolution:
+        "Arrival time reviewed with dispatch. ₹150 demo goodwill credit applied; customer confirmed the visit was otherwise fine.",
+      resolvedAt: hoursAgo(260),
+    },
+    {
+      id: "disp-1006",
+      reference: "SUP-1035",
+      bookingId: "bk-1004",
+      kind: "delay",
+      priority: "low",
+      status: "resolved",
+      owner: "Dev Patel",
+      summary:
+        "Customer was charged a cancellation fee after a technician reschedule and asked for the charge to be reviewed.",
+      openedAt: hoursAgo(408),
+      slaHours: 72,
+      evidence: ["Cancellation record (demo)"],
+      customerUpdates: [
+        {
+          id: "upd-1",
+          body: "We've waived the demo cancellation fee because the reschedule came from our side.",
+          at: hoursAgo(390),
+          author: "Dev Patel",
+        },
+      ],
+      internalNotes: [],
+      resolution:
+        "Reschedule originated from dispatch, so the ₹99 demo cancellation fee was waived.",
+      resolvedAt: hoursAgo(390),
+    },
+  ];
+}
+
+/** Admin catalogue records seeded from the customer-facing service list. */
+export function createSeedCatalog(): CatalogEntry[] {
+  return SERVICES.map((service, index) => ({
+    ...service,
+    status: "live" as const,
+    priceBasis:
+      index % 2 === 0
+        ? "Starting price · parts and extra work quoted after inspection"
+        : "Inspection-based final quote · starting price shown",
+    updatedAt: at(daysAgo(index % 9), 11, 30),
+  }));
 }
 

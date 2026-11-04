@@ -9,12 +9,14 @@ import {
   ImagePlus,
   MapPin,
   ReceiptText,
+  UserCheck,
   Wallet,
   Banknote,
 } from "lucide-react";
 import { useDemoStore } from "@/lib/store";
 import { DEMO_LOCATIONS } from "@/lib/mock-data";
-import { formatDate, formatINR, formatSlot } from "@/lib/format";
+import { formatDate, formatINR, formatSlot, formatTimestamp } from "@/lib/format";
+import { TECHNICIAN, quoteTotal } from "@/lib/technician";
 import type { Booking, PaymentPreference } from "@/lib/types";
 import { Badge, StatusBadge } from "@/components/ui/badge";
 import { Button, buttonStyles } from "@/components/ui/button";
@@ -42,7 +44,15 @@ export function BookingDetail({
   bookingId: string;
   justCreated: boolean;
 }) {
-  const { bookings, addresses, hydrated, cancelBooking } = useDemoStore();
+  const {
+    bookings,
+    addresses,
+    jobWork,
+    technicians,
+    hydrated,
+    cancelBooking,
+    decideWorkQuote,
+  } = useDemoStore();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [cancelled, setCancelled] = useState(false);
 
@@ -78,6 +88,16 @@ export function BookingDetail({
   const address = addresses.find((a) => a.id === booking.addressId);
   const fallbackArea = DEMO_LOCATIONS[0];
   const showCancelledBanner = cancelled || booking.status === "cancelled";
+  const quote = jobWork[booking.id]?.quote;
+  const quotePending =
+    quote?.status === "pending" && booking.status === "awaiting_approval";
+  const technicianAssigned =
+    booking.status !== "requested" &&
+    booking.status !== "cancelled" &&
+    Boolean(booking.timeline.find((step) => step.status === "assigned")?.at);
+  const technicianName =
+    technicians.find((entry) => entry.id === booking.technicianId)?.name ??
+    TECHNICIAN.name;
 
   return (
     <div>
@@ -207,8 +227,127 @@ export function BookingDetail({
                   </dd>
                 </div>
               </div>
+
+              {technicianAssigned ? (
+                <div className="flex gap-2.5">
+                  <UserCheck
+                    aria-hidden="true"
+                    className="mt-0.5 size-4 shrink-0 text-ink-muted"
+                  />
+                  <div>
+                    <dt className="text-[12px] font-medium text-ink-muted">
+                      Technician
+                    </dt>
+                    <dd className="mt-0.5 text-[14px] text-ink">
+                      {technicianName}
+                      <span className="block text-[12.5px] text-ink-muted">
+                        Simulated technician profile
+                      </span>
+                    </dd>
+                  </div>
+                </div>
+              ) : null}
             </dl>
           </section>
+
+          {/* Extra-work quote raised by the technician */}
+          {quote ? (
+            <section
+              aria-labelledby="quote-heading"
+              className={
+                quotePending
+                  ? "rounded-lg border border-[#f3dcb4] bg-warning-soft p-5"
+                  : "rounded-lg border border-line bg-surface p-5"
+              }
+            >
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <h2
+                  id="quote-heading"
+                  className="text-[16px] font-semibold text-ink"
+                >
+                  Extra work quote
+                </h2>
+                <Badge
+                  tone={
+                    quote.status === "approved"
+                      ? "success"
+                      : quote.status === "declined"
+                        ? "neutral"
+                        : "warning"
+                  }
+                  dot
+                >
+                  {quote.status === "approved"
+                    ? "Approved"
+                    : quote.status === "declined"
+                      ? "Declined"
+                      : "Needs your approval"}
+                </Badge>
+              </div>
+              <p className="mt-1 text-[13.5px] leading-relaxed text-ink-secondary">
+                {technicianName} raised this during the visit on{" "}
+                {formatTimestamp(quote.submittedAt)}. Extra work never starts
+                without your approval.
+              </p>
+
+              <ul className="mt-3 space-y-2 border-t border-line/80 pt-3">
+                {quote.items.map((item) => (
+                  <li
+                    key={item.id}
+                    className="flex items-baseline justify-between gap-4 text-[14px]"
+                  >
+                    <span className="text-ink-secondary">{item.description}</span>
+                    <span className="font-medium tabular-nums text-ink">
+                      {formatINR(item.amount)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+
+              <div className="mt-3 flex items-baseline justify-between gap-4 border-t border-line/80 pt-3">
+                <p className="text-[14.5px] font-semibold text-ink">
+                  Quote total
+                </p>
+                <p className="text-[18px] font-[680] tabular-nums text-ink">
+                  {formatINR(quoteTotal(quote))}
+                </p>
+              </div>
+
+              {quote.note ? (
+                <p className="mt-3 text-[13.5px] leading-relaxed text-ink-secondary">
+                  “{quote.note}”
+                </p>
+              ) : null}
+
+              {quotePending ? (
+                <>
+                  <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                    <Button
+                      onClick={() => decideWorkQuote(booking.id, "approved")}
+                    >
+                      Approve extra work
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      onClick={() => decideWorkQuote(booking.id, "declined")}
+                    >
+                      Decline
+                    </Button>
+                  </div>
+                  <p className="mt-2 text-[12.5px] leading-relaxed text-ink-muted">
+                    The technician is paused until you decide. This demo takes
+                    no payment — the choice only updates the booking.
+                  </p>
+                </>
+              ) : (
+                <p className="mt-3 text-[12.5px] leading-relaxed text-ink-muted">
+                  {quote.status === "approved"
+                    ? "You approved this work. It stays on the booking and is included in the final estimate."
+                    : "You declined this work. The visit continues with the original scope."}
+                </p>
+              )}
+            </section>
+          ) : null}
 
           {/* Timeline */}
           <section

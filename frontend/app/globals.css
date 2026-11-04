@@ -96,6 +96,48 @@
   }
 }
 
+/* Admin drawer / mobile navigation motion */
+@keyframes admin-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes admin-slide-in-left {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes admin-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.admin-drawer-enter {
+  animation: admin-slide-in 180ms ease-out;
+}
+
+.admin-sidebar-enter {
+  animation: admin-slide-in-left 200ms ease-out;
+}
+
+.admin-backdrop-enter {
+  animation: admin-fade-in 160ms ease-out;
+}
+
 /* Thin, quiet scrollbar for horizontal chip rows on desktop */
 @utility scrollbar-none {
   scrollbar-width: none;

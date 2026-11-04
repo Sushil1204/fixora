@@ -26,8 +26,11 @@ function matchesTab(booking: Booking, tab: TabId) {
   return (
     booking.status === "requested" ||
     booking.status === "assigned" ||
+    booking.status === "accepted" ||
     booking.status === "on_the_way" ||
-    booking.status === "in_progress"
+    booking.status === "arrived" ||
+    booking.status === "in_progress" ||
+    booking.status === "awaiting_approval"
   );
 }
 
