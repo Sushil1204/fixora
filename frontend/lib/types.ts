@@ -56,8 +56,11 @@ export interface Address {
 export type BookingStatus =
   | "requested"
   | "assigned"
+  | "accepted"
   | "on_the_way"
+  | "arrived"
   | "in_progress"
+  | "awaiting_approval"
   | "completed"
   | "cancelled";
 
@@ -102,6 +105,8 @@ export interface Booking {
   attachments: string[];
   estimate: Estimate;
   paymentPreference: PaymentPreference;
+  /** Verified technician assigned by demo dispatch (absent until assignment) */
+  technicianId?: string;
   status: BookingStatus;
   timeline: TimelineStep[];
   createdAt: string;
@@ -130,4 +135,146 @@ export interface UserProfile {
 export interface TimeSlot {
   id: string;
   label: string;
+}
+
+/* ----------------------------- Technician portal ----------------------------- */
+
+/** Checklist items sit either side of the visit. */
+export type JobPhase = "pre" | "post";
+
+export interface JobChecklistItem {
+  id: string;
+  phase: JobPhase;
+  label: string;
+}
+
+/** Photo evidence is a simulated placeholder — nothing is uploaded. */
+export interface JobEvidenceSlot {
+  id: string;
+  label: string;
+  hint: string;
+}
+
+export interface WorkQuoteItem {
+  id: string;
+  description: string;
+  amount: number;
+}
+
+export type WorkQuoteStatus = "pending" | "approved" | "declined";
+
+/** Extra work raised by the technician, awaiting the customer's decision. */
+export interface WorkQuote {
+  items: WorkQuoteItem[];
+  note: string;
+  status: WorkQuoteStatus;
+  submittedAt: string;
+  decidedAt?: string;
+}
+
+/**
+ * Technician-side state for one booking. The booking itself stays the single
+ * source of truth for workflow status and timeline.
+ */
+export interface JobWork {
+  /** Completed checklist item ids */
+  done: string[];
+  /** Evidence slot id -> capture timestamp */
+  evidence: Record<string, string>;
+  quote?: WorkQuote;
+  /** Post-job notes; still editable after completion */
+  notes: string;
+}export type JobWorkMap = Record<string, JobWork>;
+export interface TechnicianAvailability {
+  online: boolean;
+  /** Weekday numbers, 0 = Sunday */
+  workingDays: number[];
+}
+
+/* -------------------------------- Admin portal -------------------------------- */
+
+export type AdminRange = "7d" | "30d" | "90d";
+
+export type VerificationStatus = "pending" | "verified" | "rejected";
+
+export interface TechnicianDocument {
+  id: string;
+  kind: "identity" | "police" | "skill" | "address";
+  name: string;
+  status: VerificationStatus;
+  /** ISO timestamp; documents are simulated placeholders */
+  uploadedAt: string;
+  note: string;
+}
+
+export interface TechnicianRecord {
+  id: string;
+  code: string;
+  name: string;
+  initials: string;
+  phone: string;
+  email: string;
+  skills: ServiceCategoryId[];
+  coverage: string[];
+  rating: string;
+  jobsCompleted: number;
+  yearsExperience: number;
+  joinedAt: string;
+  lastActiveAt: string;
+  verification: VerificationStatus;
+  verificationNote?: string;
+  documents: TechnicianDocument[];
+}
+
+export type DisputePriority = "high" | "medium" | "low";
+export type DisputeStatus = "open" | "investigating" | "resolved";
+export type DisputeKind = "quality" | "billing" | "delay" | "damage";
+
+export interface DisputeUpdate {
+  id: string;
+  /** Customer-safe wording only */
+  body: string;
+  at: string;
+  author: string;
+}
+
+export interface DisputeNote {
+  id: string;
+  body: string;
+  at: string;
+  author: string;
+}
+
+/** A support or dispute case linked to a demo booking. */
+export interface DisputeCase {
+  id: string;
+  reference: string;
+  bookingId: string;
+  kind: DisputeKind;
+  priority: DisputePriority;
+  status: DisputeStatus;
+  /** Admin team member name, or null when unassigned */
+  owner: string | null;
+  summary: string;
+  openedAt: string;
+  /** Internal SLA target in hours */
+  slaHours: number;
+  /** Simulated evidence placeholders */
+  evidence: string[];
+  /** Safe to surface to the customer */
+  customerUpdates: DisputeUpdate[];
+  /** Never shown in the customer portal */
+  internalNotes: DisputeNote[];
+  resolution?: string;
+  resolvedAt?: string;
+}
+
+export type CatalogStatus = "live" | "draft" | "archived";
+
+/** Admin catalogue record wrapping the seeded customer-facing service. */
+export interface CatalogEntry extends Service {
+  status: CatalogStatus;
+  /** How the price is presented, e.g. starting price or inspection quote */
+  priceBasis: string;
+  updatedAt: string;
 }

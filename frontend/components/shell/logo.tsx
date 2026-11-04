@@ -6,13 +6,20 @@ interface LogoProps {
   /** Use white text when sitting on a dark surface */
   onDark?: boolean;
   href?: string;
+  /** Hide the "Fixora" wordmark (for a collapsed rail) */
+  showWordmark?: boolean;
 }
 
 /**
  * Fixora wordmark: a compact "roof + wrench" mark inside a rounded square,
  * paired with a tight, confident wordmark.
  */
-export function Logo({ className, onDark, href = "/" }: LogoProps) {
+export function Logo({
+  className,
+  onDark,
+  href = "/",
+  showWordmark = true,
+}: LogoProps) {
   return (
     <Link
       href={href}
@@ -47,14 +54,16 @@ export function Logo({ className, onDark, href = "/" }: LogoProps) {
           <path d="M14.4 9.2a2.3 2.3 0 0 0 3.2 3.2l1.4 1.4a1.6 1.6 0 0 1-2.2 2.2l-1.4-1.4a2.3 2.3 0 0 1-3.2-3.2Z" />
         </svg>
       </span>
-      <span
-        className={cn(
-          "text-[19px] font-[680] tracking-[-0.015em]",
-          onDark ? "text-white" : "text-ink",
-        )}
-      >
-        Fixora
-      </span>
+      {showWordmark ? (
+        <span
+          className={cn(
+            "text-[19px] font-[680] tracking-[-0.015em]",
+            onDark ? "text-white" : "text-ink",
+          )}
+        >
+          Fixora
+        </span>
+      ) : null}
     </Link>
   );
 }

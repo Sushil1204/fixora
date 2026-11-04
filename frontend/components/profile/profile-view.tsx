@@ -7,11 +7,13 @@ import {
   Bell,
   CircleHelp,
   FileText,
+  LayoutDashboard,
   LogOut,
   MapPin,
   Pencil,
   RotateCcw,
   UserRound,
+  Wrench,
 } from "lucide-react";
 import { useDemoStore } from "@/lib/store";
 import { Badge } from "@/components/ui/badge";
@@ -261,6 +263,17 @@ export function ProfileView() {
             sent anywhere.
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
+            <Link
+              href="/admin"
+              className={buttonStyles({ variant: "secondary" })}
+            >
+              <LayoutDashboard aria-hidden="true" className="size-4" />
+              Admin portal (demo)
+            </Link>
+            <Link href="/technician" className={buttonStyles({ variant: "secondary" })}>
+              <Wrench aria-hidden="true" className="size-4" />
+              Technician portal (demo)
+            </Link>
             <Button variant="secondary" onClick={() => setConfirmAction("reset")}>
               <RotateCcw aria-hidden="true" className="size-4" />
               Reset demo data

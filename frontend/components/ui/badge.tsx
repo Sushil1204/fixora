@@ -44,8 +44,11 @@ const statusMeta: Record<
 > = {
   requested: { label: "Requested", tone: "warning" },
   assigned: { label: "Assigned", tone: "info" },
+  accepted: { label: "Accepted", tone: "brand" },
   on_the_way: { label: "On the way", tone: "brand" },
+  arrived: { label: "Arrived", tone: "info" },
   in_progress: { label: "In progress", tone: "accent" },
+  awaiting_approval: { label: "Awaiting approval", tone: "warning" },
   completed: { label: "Completed", tone: "success" },
   cancelled: { label: "Cancelled", tone: "neutral" },
 };
